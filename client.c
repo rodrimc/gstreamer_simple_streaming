@@ -145,7 +145,7 @@ int main (int argc, char *argv[])
   
   if (!gst_element_link_many (app.source, app.buffer, app.decoder, NULL))
   {
-    fprintf (stderr, "Could not link elments: source --> buffer --> decoder\n"
+    fprintf (stderr, "Could not link elements: source --> buffer --> decoder\n"
           "Exiting...\n");
     return 0;
   }
