@@ -4,7 +4,7 @@ This is a simple project that provides an implementation of a streaming server a
 #How to use
 For running the server, a URI, a network interface and a port number should be specified:
 
-./tcp_server -u \<URI\> -i \<interface\> -p \<port\>
+./tcp_server -f \<URI\> -i \<interface\> -p \<port\>
 
 For running the client, it should be specified the server address and port:
 
