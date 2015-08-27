@@ -39,7 +39,7 @@ static void pad_added (GstElement *src, GstPad *new_pad, ClientData *app)
   {
     if (app->audio_sink == NULL)
     {
-      app->audio_sink  = gst_element_factory_make ("alsasink", "audio_sink");
+      app->audio_sink  = gst_element_factory_make ("autoaudiosink", "audio_sink");
       sink = app->audio_sink;
     }
   }
@@ -51,7 +51,6 @@ static void pad_added (GstElement *src, GstPad *new_pad, ClientData *app)
           "video_sink");
       sink = app->video_sink;
     }
-    
   }
  
   if (sink == NULL)
@@ -137,7 +136,7 @@ int main (int argc, char *argv[])
     fprintf (stderr, "Error while instantiating elements.\nExiting...");
     return 0;
   }
-  
+ 
   g_print ("Pipeline created successfully.\n");
 
   gst_bin_add_many (GST_BIN (app.pipeline), app.source, app.buffer, 
