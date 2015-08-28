@@ -5,7 +5,7 @@ CLIENT_CFLAGS = -g -Wall `pkg-config --cflags gstreamer-1.0`
 SERVER_CFLAGS = -g -Wall `pkg-config --cflags gstreamer-pbutils-1.0`
 
 CLIENT_SOURCE = client.c
-SERVER_SOURCE = gstcapslist.h gstcapslist.c tcp_server.c
+SERVER_SOURCE = tcp_server.c
 
 .PHONY: default all clean
 
