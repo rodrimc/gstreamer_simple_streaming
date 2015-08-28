@@ -55,18 +55,17 @@ static gboolean handle_input (GIOChannel *io_channel, GIOCondition cond,
     case G_IO_STATUS_NORMAL:
       if ('q' == in) 
       {
-        fprintf (stderr, "Quitting...\n");
+        fprintf (stdout, "Quitting...\n");
         g_main_loop_quit (app->loop);
         return FALSE;
       } 
       return TRUE;
 
     case G_IO_STATUS_ERROR:
-      g_printerr ("IO error: %s\n", error->message);
+      fprintf (stderr, "IO error: %s\n", error->message);
       g_error_free (error);
 
       return FALSE;
-
     case G_IO_STATUS_EOF:
       g_warning ("No input data available");
       return TRUE;
@@ -148,10 +147,9 @@ static gboolean bus_call (GstBus *bus, GstMessage *msg, gpointer data)
   {
     case GST_MESSAGE_EOS:
     {
-      fprintf (stderr, "end-of-stream\n");
-     
+      fprintf (stdout, "end-of-stream\n");
+    
       g_main_loop_quit (app->loop);
-
       break;
     }
     case GST_MESSAGE_ERROR:
@@ -188,7 +186,7 @@ static void pad_added (GstElement *src, GstPad *new_pad, ServerData *app)
   pad_struct = gst_caps_get_structure (caps, 0);
   struct_name = gst_structure_get_name (pad_struct);
 
-  fprintf (stderr, "Pad structure: %s\n", struct_name);
+  g_debug ("Pad structure: %s\n", struct_name);
 
   if (strcmp (struct_name, "video/x-raw") == 0)
     sink_pad = gst_element_get_static_pad (app->v_encoder, "sink");
@@ -200,14 +198,14 @@ static void pad_added (GstElement *src, GstPad *new_pad, ServerData *app)
   gst_caps_unref (caps);
 
   if (sink_pad == NULL)
-    fprintf (stderr, "Could not get a pad from the encoder/muxer\n");
+    g_debug ("Could not get a pad from the encoder/muxer\n");
   else
   {
     src_pad_name = gst_pad_get_name (new_pad);
     sink_pad_name = gst_pad_get_name (sink_pad);
     parent_pad = gst_pad_get_parent_element (sink_pad);
 
-    fprintf (stderr, "Trying to link pads:  %s[%s] --> %s[%s]: ",
+    g_debug ("Trying to link pads:  %s[%s] --> %s[%s]: ",
         GST_ELEMENT_NAME (src), src_pad_name, 
         GST_ELEMENT_NAME (parent_pad), sink_pad_name);
 
@@ -218,10 +216,11 @@ static void pad_added (GstElement *src, GstPad *new_pad, ServerData *app)
     ret = gst_pad_link (new_pad, sink_pad);
     if (ret != GST_PAD_LINK_OK)
     {
-      fprintf (stderr, "Could not link pads (return = %d)\n", ret);
+      g_debug ("Could not link pads (return = %d)\n", ret);
+      fprintf (stderr, "Internal pipeline error\n");
     }
     else
-      fprintf (stderr, "Pads linked\n");
+      g_debug ("Pads linked\n");
 
     gst_object_unref (sink_pad);
   }       
@@ -265,21 +264,21 @@ static int link_encoders_muxer (ServerData *app)
 
   if (!error)
   {
-    fprintf (stderr, "Trying to link video encoder and muxer: ");
+    g_debug ("Trying to link video encoder and muxer: ");
     if (gst_pad_link (v_src_pad, v_mux_pad) == GST_PAD_LINK_OK)
-      fprintf (stderr, "succeed\n");
+      g_debug ("succeed\n");
     else
     {
-      fprintf (stderr, "failed\n"); 
+      g_debug ("failed\n"); 
       error = 1;
     }
 
-    fprintf (stderr, "Trying to link audio encoder and muxer: ");
+    g_debug ("Trying to link audio encoder and muxer: ");
     if (gst_pad_link (a_src_pad, a_mux_pad) == GST_PAD_LINK_OK)
-      fprintf (stderr, "succeed\n");
+      g_debug ("succeed\n");
     else
     {
-      fprintf (stderr, "failed\n"); 
+      g_debug ("failed\n"); 
       error = 1;
     }
   }
@@ -325,13 +324,13 @@ int check_args ()
   int error_flag = 0;
   if (net_if == NULL)
   {
-    printf ("Error: unknown network interface\n");
+    fprintf (stderr, "Error: unknown network interface\n");
     error_flag = 1;
   }
 
   if (uri == NULL)
   {
-    printf ("Error: URI unspecified\n");
+    fprintf (stderr, "Error: URI unspecified\n");
     error_flag = 1;
   }
 
@@ -409,12 +408,12 @@ int main (int argc, char *argv[])
   bus = gst_pipeline_get_bus (GST_PIPELINE (app.pipeline));
   gst_bus_add_watch (bus, bus_call, &app);
 
-  fprintf (stderr, "Preparing to streaming: %s\n"
+  fprintf (stdout, "Preparing the streaming of: %s\n"
       "Network Interface: %s\n"
       "Server IP: %s\n"
       "Server port: %d\n", uri, net_if, addr, port);
   
-  fprintf (stderr, "Press 'q' to stop streaming and quit\n");
+  fprintf (stdout, "Press 'q' to stop streaming and quit\n");
   free (addr);
 
   gst_element_set_state (GST_ELEMENT (app.pipeline), GST_STATE_PLAYING);
