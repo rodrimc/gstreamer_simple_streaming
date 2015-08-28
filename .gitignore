@@ -28,6 +28,7 @@
 *.x86_64
 *.hex
 tcp_client
+tcp_server
 
 # Debug files
 *.dSYM/
