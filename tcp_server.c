@@ -18,7 +18,9 @@ typedef struct _ServerData
   GstElement *pipeline;
   GstElement *source;
   GstElement *a_filter;  //Format conversion
+  GstElement *a_enc_buffer;
   GstElement *a_encoder;
+  GstElement *v_enc_buffer;
   GstElement *v_encoder;
   GstElement *muxer;
   GstElement *sink_buffer;
@@ -80,19 +82,22 @@ static int init (ServerData *app)
   int error_flag = 0;
   gst_init (NULL, NULL);
 
-  app->loop        = g_main_loop_new (NULL, FALSE);
-  app->pipeline    = gst_pipeline_new ("server");
-  app->source      = gst_element_factory_make ("uridecodebin", "decoder");
-  app->a_filter    = gst_element_factory_make ("audioconvert", "audio filter");
-  app->a_encoder   = gst_element_factory_make ("vorbisenc", "audio enconder");
-  app->v_encoder   = gst_element_factory_make ("jpegenc", "video encoder");
-  app->muxer       = gst_element_factory_make ("matroskamux", "muxer");
-  app->sink_buffer = gst_element_factory_make ("queue", "sink buffer");
-  app->sink        = gst_element_factory_make ("tcpserversink", "sink");
+  app->loop         = g_main_loop_new (NULL, FALSE);
+  app->pipeline     = gst_pipeline_new ("server");
+  app->source       = gst_element_factory_make ("uridecodebin", "decoder");
+  app->a_filter     = gst_element_factory_make ("audioconvert","audio filter");
+  app->a_enc_buffer = gst_element_factory_make ("queue", "audio enc buffer");
+  app->a_encoder    = gst_element_factory_make ("vorbisenc", "audio enconder");
+  app->v_enc_buffer = gst_element_factory_make ("queue", "video enc buffer");
+  app->v_encoder    = gst_element_factory_make ("jpegenc", "video encoder");
+  app->muxer        = gst_element_factory_make ("matroskamux", "muxer");
+  app->sink_buffer  = gst_element_factory_make ("queue", "sink buffer");
+  app->sink         = gst_element_factory_make ("tcpserversink", "sink");
 
-  if (app->pipeline == NULL || app->source == NULL || app->a_filter == NULL
-      || app->a_encoder == NULL || app->v_encoder == NULL || 
-      app->muxer == NULL  || app->sink_buffer == NULL || app->sink == NULL)
+  if (app->pipeline == NULL || app->source == NULL || app->a_filter == NULL ||
+      app->a_enc_buffer == NULL || app->a_encoder == NULL || 
+      app->v_enc_buffer == NULL || app->v_encoder == NULL || 
+      app->muxer == NULL ||  app->sink_buffer == NULL  || app->sink == NULL)
   {
     fprintf (stderr, "Error while instantiating elements\n");
     error_flag = 1;
@@ -106,7 +111,8 @@ static int init (ServerData *app)
     g_io_channel_unref (io);
 
     gst_bin_add_many (GST_BIN (app->pipeline), app->source, app->a_filter, 
-        app->a_encoder, app->v_encoder, app->muxer, app->sink_buffer, app->sink, 
+        app->a_enc_buffer, app->a_encoder, app->v_enc_buffer, app->v_encoder, 
+        app->muxer, app->sink_buffer, app->sink, 
         NULL);
   }
 
@@ -117,10 +123,22 @@ static int set_links (ServerData *app)
 {
   GstCaps *a_caps = NULL;
   int error_flag = 0;
-
+  
   if (!gst_element_link_many (app->muxer, app->sink_buffer, app->sink, NULL))
   {
     fprintf (stderr, "Could not link elements: muxer --> buffer --> sink\n");
+    error_flag = 1;
+  }
+
+  if (!gst_element_link (app->a_enc_buffer, app->a_encoder))
+  {
+    fprintf (stderr, "Could not link elements: queue --> audio encoder\n");
+    error_flag = 1;
+  }
+
+  if (!gst_element_link (app->v_enc_buffer, app->v_encoder))
+  {
+    fprintf (stderr, "Could not link elements: queue --> video encoder\n");
     error_flag = 1;
   }
 
@@ -131,9 +149,9 @@ static int set_links (ServerData *app)
       "rate", G_TYPE_INT, 48000,
       NULL);
 
-  if (!gst_element_link_filtered (app->a_filter, app->a_encoder, a_caps))
+  if (!gst_element_link_filtered (app->a_filter, app->a_enc_buffer, a_caps))
   {
-    fprintf (stderr, "Could not link audio filter and audio encoder\n");
+    fprintf (stderr, "Could not link audio filter and audio enc buffer\n");
     error_flag = 1;
   }
 
@@ -189,7 +207,7 @@ static void pad_added (GstElement *src, GstPad *new_pad, ServerData *app)
   g_debug ("Pad structure: %s\n", struct_name);
 
   if (strcmp (struct_name, "video/x-raw") == 0)
-    sink_pad = gst_element_get_static_pad (app->v_encoder, "sink");
+    sink_pad = gst_element_get_static_pad (app->v_enc_buffer, "sink");
   else if (strcmp (struct_name, "audio/x-raw") == 0)
     sink_pad = gst_element_get_static_pad (app->a_filter, "sink");
   else
