@@ -25,11 +25,13 @@ typedef struct _ServerData
   GstElement *sink;
 } ServerData;
 
-static char *addr              = NULL;
-static gchar *net_if           = NULL;
-static gchar *uri              = NULL;
-static gint port               = -1;
+//Command line args
+static char *addr     = NULL;
+static gchar *net_if  = NULL;
+static gchar *uri     = NULL;
+static gint port      = -1;
 
+//Function Declarations
 static int init (ServerData *);
 static int set_links (ServerData *); 
 static int check_args (void);
@@ -37,6 +39,42 @@ static void pad_added (GstElement *, GstPad *, ServerData *);
 static gboolean bus_call (GstBus *, GstMessage*, gpointer);
 static int link_encoders_muxer (ServerData *app);
 static char *if_addr (char *);
+static gboolean handle_input (GIOChannel *, GIOCondition, gpointer);
+
+
+//Function Definitions
+static gboolean handle_input (GIOChannel *io_channel, GIOCondition cond, 
+    gpointer data)
+{
+  ServerData *app = (ServerData *) data;
+  GError *error = NULL;
+  gchar in;
+
+  switch (g_io_channel_read_chars (io_channel, &in, 1, NULL, &error)) 
+  {
+    case G_IO_STATUS_NORMAL:
+      if ('q' == in) 
+      {
+        fprintf (stderr, "Quitting...\n");
+        g_main_loop_quit (app->loop);
+        return FALSE;
+      } 
+      return TRUE;
+
+    case G_IO_STATUS_ERROR:
+      g_printerr ("IO error: %s\n", error->message);
+      g_error_free (error);
+
+      return FALSE;
+
+    case G_IO_STATUS_EOF:
+      g_warning ("No input data available");
+      return TRUE;
+
+    default:
+      return TRUE;
+  }
+}
 
 static int init (ServerData *app)
 {
@@ -60,10 +98,18 @@ static int init (ServerData *app)
     fprintf (stderr, "Error while instantiating elements\n");
     error_flag = 1;
   }
+  else
+  {
+    GIOChannel *io = NULL;
 
-  gst_bin_add_many (GST_BIN (app->pipeline), app->source, app->a_filter, 
-      app->a_encoder, app->v_encoder, app->muxer, app->sink_buffer, app->sink, 
-      NULL);
+    io = g_io_channel_unix_new (STDIN_FILENO);
+    g_io_add_watch (io, G_IO_IN, handle_input, app);
+    g_io_channel_unref (io);
+
+    gst_bin_add_many (GST_BIN (app->pipeline), app->source, app->a_filter, 
+        app->a_encoder, app->v_encoder, app->muxer, app->sink_buffer, app->sink, 
+        NULL);
+  }
 
   return error_flag;
 }
@@ -367,7 +413,8 @@ int main (int argc, char *argv[])
       "Network Interface: %s\n"
       "Server IP: %s\n"
       "Server port: %d\n", uri, net_if, addr, port);
-      
+  
+  fprintf (stderr, "Press 'q' to stop streaming and quit\n");
   free (addr);
 
   gst_element_set_state (GST_ELEMENT (app.pipeline), GST_STATE_PLAYING);
